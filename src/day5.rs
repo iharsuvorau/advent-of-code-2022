@@ -1,17 +1,58 @@
+//! Day 5 of Advent of Code 2022
+
 use std::collections::VecDeque;
 use std::fs;
 
+/// Prints the result of part 1.
+///
+/// # Arguments
+///
+/// * `path` - Path to the input file.
+///
+/// # Examples
+///
+/// ```
+/// use advent_of_code_2022::day5;
+///
+/// day5::run1("/Users/ihar/Projects/advent-of-code-2022/input/day5.txt");
+/// ```
 pub fn run1(path: &str) {
     let input = fs::read_to_string(path).unwrap();
     let result = part_1(&input);
     println!("result: {}", result);
 }
 
-fn part_1(input: &String) -> String {
-    let layout = parse_layout(&input);
-    let instructions = parse_instructions(&input);
+/// Prints the result of part 2.
+///
+/// # Arguments
+///
+/// * `path` - Path to the input file.
+///
+/// # Examples
+///
+/// ```
+/// use advent_of_code_2022::day5;
+///
+/// day5::run2("/Users/ihar/Projects/advent-of-code-2022/input/day5.txt");
+/// ```
+pub fn run2(path: &str) {
+    let input = fs::read_to_string(path).unwrap();
+    let result = part_2(&input);
+    println!("result: {}", result);
+}
+
+fn part_1(input: &str) -> String {
+    let layout = parse_layout(input);
+    let instructions = parse_instructions(input);
     let instructions = convert_instructions(&instructions);
-    process_instructions(&layout, &instructions)
+    process_instructions(&layout, &instructions, &execute_instruction_part_1)
+}
+
+fn part_2(input: &str) -> String {
+    let layout = parse_layout(input);
+    let instructions = parse_instructions(input);
+    let instructions = convert_instructions(&instructions);
+    process_instructions(&layout, &instructions, &execute_instruction_part_2)
 }
 
 /// Converts instructions to machine format.
@@ -35,6 +76,7 @@ fn convert_instructions(instructions: &Vec<String>) -> Vec<Vec<usize>> {
 fn process_instructions(
     containers: &Vec<VecDeque<char>>,
     instructions: &Vec<Vec<usize>>,
+    instruction_processor: &dyn Fn(&mut [VecDeque<char>], usize, usize, usize),
 ) -> String {
     let mut result = containers.clone();
 
@@ -43,9 +85,7 @@ fn process_instructions(
         let from = instruction[1];
         let to = instruction[2];
 
-        for _ in 0..qty {
-            execute_instruction(&mut result, from, to);
-        }
+        instruction_processor(&mut result, qty, from, to);
     });
 
     result.iter().fold(String::new(), |acc, container| {
@@ -53,8 +93,27 @@ fn process_instructions(
     })
 }
 
+/// Executes a single instruction while reversing the containers order.
+fn execute_instruction_part_1(result: &mut [VecDeque<char>], qty: usize, from: usize, to: usize) {
+    for _ in 0..qty {
+        execute_instruction(result, from, to);
+    }
+}
+
+/// Executes a single instruction while preserving the containers order.
+fn execute_instruction_part_2(result: &mut [VecDeque<char>], qty: usize, from: usize, to: usize) {
+    let mut cargo: VecDeque<char> = VecDeque::new();
+    for _ in 0..qty {
+        let container = result[from].pop_front().unwrap();
+        cargo.push_front(container);
+    }
+    for container in cargo {
+        result[to].push_front(container);
+    }
+}
+
 /// Executes a single instruction.
-fn execute_instruction(result: &mut Vec<VecDeque<char>>, from: usize, to: usize) {
+fn execute_instruction(result: &mut [VecDeque<char>], from: usize, to: usize) {
     let cargo = result[from].pop_front().unwrap();
     result[to].push_front(cargo);
 }
@@ -162,13 +221,23 @@ move 1 from 1 to 2",
     }
 
     #[test]
-    fn test_process_instructions() {
+    fn test_process_instructions_1() {
         let input = input();
         let layout = parse_layout(&input);
         let instructions = parse_instructions(&input);
         let instructions = convert_instructions(&instructions);
-        let result = process_instructions(&layout, &instructions);
+        let result = process_instructions(&layout, &instructions, &execute_instruction_part_1);
         assert_eq!(result, "CMZ");
+    }
+
+    #[test]
+    fn test_process_instructions_2() {
+        let input = input();
+        let layout = parse_layout(&input);
+        let instructions = parse_instructions(&input);
+        let instructions = convert_instructions(&instructions);
+        let result = process_instructions(&layout, &instructions, &execute_instruction_part_2);
+        assert_eq!(result, "MCD");
     }
 
     #[test]
