@@ -1,85 +1,99 @@
+use std::collections::VecDeque;
 use std::fs;
 
 pub fn run1(path: &str) {
     let input = fs::read_to_string(path).unwrap();
-    let _result = part_1(&input);
-    // println!("result: {}", result);
+    let result = part_1(&input);
+    println!("result: {}", result);
 }
 
-fn part_1(input: &String) -> &str {
-    input
+fn part_1(input: &String) -> String {
+    let layout = parse_layout(&input);
+    let instructions = parse_instructions(&input);
+    let instructions = convert_instructions(&instructions);
+    process_instructions(&layout, &instructions)
 }
 
-fn simplify_instructions(instructions: &Vec<String>) -> Vec<Vec<usize>> {
+/// Converts instructions to machine format.
+fn convert_instructions(instructions: &Vec<String>) -> Vec<Vec<usize>> {
     instructions.iter().fold(Vec::new(), |acc, instruction| {
         let mut result: Vec<Vec<usize>> = acc.clone();
-        let n: Vec<usize> = instruction
+        let mut n: Vec<usize> = instruction
             .split(' ')
             .skip(1)
             .step_by(2)
             .map(|s| s.parse::<usize>().unwrap())
             .collect();
+        n[1] = n[1] - 1;
+        n[2] = n[2] - 1;
         result.push(n);
         result
     })
 }
 
-fn process_instructions(containers: &Vec<Vec<char>>, instructions: &Vec<String>) -> String {
-    let instructions_simplified = simplify_instructions(instructions);
+/// Executes instructions on the containers.
+fn process_instructions(
+    containers: &Vec<VecDeque<char>>,
+    instructions: &Vec<Vec<usize>>,
+) -> String {
     let mut result = containers.clone();
-    instructions_simplified.iter().for_each(|instruction| {
+
+    instructions.iter().for_each(|instruction| {
         let qty = instruction[0];
         let from = instruction[1];
         let to = instruction[2];
-        dbg!(instruction);
 
         for _ in 0..qty {
-            execute_insutruction(&mut result, from, to);
+            execute_instruction(&mut result, from, to);
         }
     });
-    dbg!(&result);
-    String::from("")
+
+    result.iter().fold(String::new(), |acc, container| {
+        acc + container[0].to_string().as_str()
+    })
 }
 
-fn execute_insutruction(result: &mut Vec<Vec<char>>, from: usize, to: usize) {
-    // take cargo from container
-    let cargo = result[from][0].clone();
-    result[from][0] = ' ';
-
-    // find the last empty slot
-    let n: usize;
-    result[to].reverse();
-    if let Some(i) = result[to].iter().position(|&c| c == ' ') {
-        n = result[to].len() - i - 2;
-    } else {
-        n = result[to].len();
-    }
-    result[to].reverse();
-
-    // move cargo
-    dbg!(to);
-    dbg!(n);
-    result[to][n] = cargo;
+/// Executes a single instruction.
+fn execute_instruction(result: &mut Vec<VecDeque<char>>, from: usize, to: usize) {
+    let cargo = result[from].pop_front().unwrap();
+    result[to].push_front(cargo);
 }
 
+/// Parses instructions from input.
 fn parse_instructions(input: &str) -> Vec<String> {
     let instructions: String = input.split("\n\n").skip(1).take(1).collect();
     let result: Vec<&str> = instructions.split('\n').collect();
-    result.iter().map(|s| s.to_string()).collect()
+    result
+        .iter()
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
-fn parse_layout(input: &str) -> Vec<Vec<char>> {
-    let layout: String = input.split("\n\n").take(1).collect();
-    let stacks: Vec<&str> = layout.split('\n').collect();
-    let num_stacks = stacks[0].len() / 3;
-    let stacks: Vec<&&str> = stacks.iter().take(stacks.len() - 1).collect();
+/// Returns an amount of stacks from the last line of the stacks layout.
+fn num_stacks(line: &str) -> usize {
+    let mut result = 0;
+    for s in line.split(' ') {
+        if !s.is_empty() {
+            result = s.parse::<usize>().unwrap();
+        }
+    }
+    result
+}
 
-    let mut containers: Vec<Vec<char>> = Vec::new();
+/// Parses the stacks layout and containers' positions from input.
+fn parse_layout(input: &str) -> Vec<VecDeque<char>> {
+    let layout: String = input.split("\n\n").take(1).collect();
+    let rows: Vec<&str> = layout.split('\n').collect();
+    let num_stacks = num_stacks(rows[rows.len() - 1]);
+    let rows_without_last_line: Vec<&&str> = rows.iter().take(rows.len() - 1).collect();
+
+    let mut containers: Vec<VecDeque<char>> = Vec::new();
     for _ in 0..num_stacks {
-        containers.push(Vec::new());
+        containers.push(VecDeque::new());
     }
 
-    for stack in stacks {
+    for stack in rows_without_last_line {
         let mut container: Vec<char> = Vec::new();
 
         stack
@@ -89,7 +103,9 @@ fn parse_layout(input: &str) -> Vec<Vec<char>> {
             .for_each(|c| container.push(c));
 
         for i in 0..num_stacks {
-            containers[i].push(container[i]);
+            if container[i] != ' ' {
+                containers[i].push_back(container[i]);
+            }
         }
     }
 
@@ -124,14 +140,8 @@ move 1 from 1 to 2",
     fn test_parse_layout() {
         let input = input();
         let result = parse_layout(&input);
-        assert_eq!(
-            result,
-            vec![
-                vec![' ', 'N', 'Z'],
-                vec!['D', 'C', 'M'],
-                vec![' ', ' ', 'P']
-            ]
-        );
+        dbg!(&result);
+        assert_eq!(result, vec![vec!['N', 'Z'], vec!['D', 'C', 'M'], vec!['P']]);
     }
 
     #[test]
@@ -146,7 +156,7 @@ move 1 from 1 to 2",
     fn test_simplify_instructions() {
         let input = input();
         let instructions = parse_instructions(&input);
-        let result = simplify_instructions(&instructions);
+        let result = convert_instructions(&instructions);
         dbg!(&result);
         assert_eq!(result.len(), 4);
     }
@@ -156,7 +166,15 @@ move 1 from 1 to 2",
         let input = input();
         let layout = parse_layout(&input);
         let instructions = parse_instructions(&input);
+        let instructions = convert_instructions(&instructions);
         let result = process_instructions(&layout, &instructions);
         assert_eq!(result, "CMZ");
+    }
+
+    #[test]
+    fn test_num_stacks() {
+        let input = " 1   2   3   4   5   6   7   8   9 ";
+        let result = num_stacks(&input);
+        assert_eq!(result, 9);
     }
 }
